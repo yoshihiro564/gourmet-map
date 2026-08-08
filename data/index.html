@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>グルメマップ｜社内おすすめ店</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c1f1a; --paper:#f7f5ef; --line:#dedad0;
+    --mustard:#e0a634; --danger:#b33a3a;
+    --radius:14px; --shadow:0 8px 24px rgba(28,31,26,0.16);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:'Noto Sans JP',sans-serif;color:var(--ink);background:var(--paper);}
+  #map{position:absolute;inset:0;z-index:1;}
+  .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow);}
+  .leaflet-popup-content{margin:14px 16px;font-family:'Noto Sans JP',sans-serif;}
+
+  header{
+    position:absolute;top:0;left:0;right:0;z-index:500;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;
+    background:linear-gradient(to bottom, rgba(28,31,26,0.88), rgba(28,31,26,0));
+    pointer-events:none;
+  }
+  header .title{
+    pointer-events:auto; font-family:'Zen Kaku Gothic New',sans-serif;
+    font-weight:900; font-size:19px; color:#fff; letter-spacing:0.02em;
+    display:flex;align-items:center;gap:8px;
+  }
+  header .title .dot{width:9px;height:9px;border-radius:50%;background:var(--mustard);}
+  .header-btns{display:flex;gap:8px;pointer-events:auto;}
+  .hbtn{
+    background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.35); color:#fff;
+    padding:8px 12px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer;
+    backdrop-filter:blur(4px);
+  }
+
+  #legend{
+    position:absolute;top:64px;right:16px;z-index:500;
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:12px 14px; display:none; max-height:60vh;overflow-y:auto; min-width:150px;
+  }
+  #legend.open{display:block;}
+  #legend h3{margin:0 0 8px;font-size:11px;letter-spacing:.08em;color:#888;font-weight:700;}
+  .legend-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;}
+  .swatch{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.15);}
+
+  #hint{
+    position:absolute;bottom:18px;left:50%;transform:translateX(-50%); z-index:500;
+    background:rgba(28,31,26,0.86);color:#fff; padding:9px 18px;border-radius:999px;font-size:12.5px;
+    box-shadow:var(--shadow); pointer-events:none; white-space:nowrap; text-align:center;
+  }
+  #syncstatus{
+    position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:600;
+    background:var(--ink);color:#fff;padding:7px 16px;border-radius:999px;font-size:12px;
+    display:none;box-shadow:var(--shadow);
+  }
+
+  .modal-overlay{
+    position:fixed;inset:0;z-index:1000; background:rgba(20,22,18,0.55);
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  @media(min-width:640px){ .modal-overlay{align-items:center;} }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--paper); width:100%;max-width:420px; border-radius:20px 20px 0 0;
+    padding:22px 22px 26px; box-shadow:0 -8px 30px rgba(0,0,0,0.25); max-height:88vh;overflow-y:auto;
+  }
+  @media(min-width:640px){ .modal{border-radius:20px;} }
+  .modal h2{ font-family:'Zen Kaku Gothic New',sans-serif; font-size:18px;margin:0 0 4px;font-weight:900; }
+  .modal .sub{font-size:12px;color:#888;margin:0 0 18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:6px;}
+  .field input[type=text], .field input[type=url], .field input[type=password], .field select{
+    width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;
+    font-size:14.5px;font-family:inherit;background:#fff;color:var(--ink);
+  }
+  .field input:focus{outline:2px solid var(--mustard);outline-offset:1px;border-color:var(--mustard);}
+  .field-required label::after{content:" *";color:var(--danger);}
+  .field-hint{font-size:11px;color:#999;margin-top:5px;line-height:1.5;}
+  .genre-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+  .genre-opt{
+    display:flex;align-items:center;gap:8px;padding:9px 10px;border:1.5px solid var(--line);
+    border-radius:10px;cursor:pointer;font-size:13px;
+  }
+  .genre-opt input{margin:0;accent-color:var(--mustard);}
+  .genre-opt .sw{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+  .btn-row{display:flex;gap:10px;margin-top:20px;}
+  .btn{flex:1;padding:13px;border-radius:12px;border:none;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn-primary{background:var(--ink);color:#fff;}
+  .btn-secondary{background:transparent;color:#888;border:1.5px solid var(--line);}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .popup-name{font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:15.5px;margin:0 0 4px;}
+  .popup-genre{display:inline-block;font-size:11px;font-weight:700;color:#fff;padding:2px 9px;border-radius:999px;margin-bottom:8px;}
+  .popup-row{font-size:12.5px;color:#555;margin-bottom:3px;}
+  .popup-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+  .popup-actions a, .popup-actions button{
+    font-size:11.5px;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--line);
+    background:#fff;text-decoration:none;color:var(--ink);cursor:pointer;font-family:inherit;
+  }
+  .popup-actions .pmap{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .popup-actions .pdel{color:var(--danger);border-color:#eec6c6;}
+  .popup-meta{font-size:10.5px;color:#aaa;margin-top:8px;}
+
+  .setup-warning{
+    position:absolute;inset:0;z-index:2000;background:var(--paper);
+    display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;
+  }
+  .setup-warning .box{max-width:460px;text-align:left;}
+  .setup-warning h1{font-family:'Zen Kaku Gothic New',sans-serif;font-size:19px;}
+  .setup-warning p{font-size:13.5px;color:#666;line-height:1.8;}
+  .setup-warning code{background:#eee;padding:2px 6px;border-radius:5px;font-size:12px;}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<header>
+  <div class="title"><span class="dot"></span>グルメマップ</div>
+  <div class="header-btns">
+    <button class="hbtn" onclick="manualRefresh()">↻ 更新</button>
+    <button class="hbtn" onclick="document.getElementById('legend').classList.toggle('open')">ジャンル</button>
+  </div>
+</header>
+
+<div id="syncstatus"></div>
+<div id="legend"><h3>ジャンル</h3><div id="legend-body"></div></div>
+<div id="hint">地図を長押しすると、お店を新規登録できます</div>
+
+<!-- 登録・編集モーダル -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">お店を登録</h2>
+    <p class="sub" id="modalSub">おすすめのお店を地図に追加しましょう</p>
+    <form id="storeForm">
+      <div class="field field-required">
+        <label>お店の名前</label>
+        <input type="text" id="f-name" required placeholder="例）〇〇食堂">
+      </div>
+      <div class="field field-required">
+        <label>ジャンル</label>
+        <div class="genre-grid" id="genreGrid"></div>
+      </div>
+      <div class="field">
+        <label>定休日</label>
+        <input type="text" id="f-closed" placeholder="例）水曜日 / 不定休 / なし">
+      </div>
+      <div class="field">
+        <label>リンク（食べログ・公式サイト等）</label>
+        <input type="url" id="f-link" placeholder="https://...">
+      </div>
+      <div class="field field-required">
+        <label>投稿者名</label>
+        <input type="text" id="f-poster" required placeholder="あなたの名前">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+        <button type="submit" class="btn btn-primary" id="submitBtn">登録する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- GitHubトークン入力モーダル -->
+<div class="modal-overlay" id="tokenOverlay">
+  <div class="modal">
+    <h2>編集用トークンの入力</h2>
+    <p class="sub">新規登録・編集・削除には、あなた専用のGitHubトークンが1回だけ必要です。以降はこの端末のブラウザに保存され、再入力は不要です。</p>
+    <div class="field">
+      <label>GitHub Personal Access Token</label>
+      <input type="password" id="f-token" placeholder="github_pat_...">
+      <p class="field-hint">
+        GitHub → 設定(Settings) → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token<br>
+        ・Repository access: このリポジトリのみを選択<br>
+        ・Permissions → Contents: <b>Read and write</b><br>
+        を選んで発行し、表示されたトークンをここに貼り付けてください。
+      </p>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('tokenOverlay').classList.remove('open')">キャンセル</button>
+      <button type="button" class="btn btn-primary" onclick="saveToken()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ============================================================
+   ここにあなたのGitHubリポジトリ情報を入力してください
+   ============================================================ */
+const CONFIG = {
+  owner: "YOUR_GITHUB_USERNAME",   // 例: "yoshihiro-suwa"
+  repo: "YOUR_REPO_NAME",          // 例: "gourmet-map"
+  branch: "main",                  // リポジトリのデフォルトブランチ名
+  dataPath: "data/spots.json"      // データ保存先のファイルパス（リポジトリ内に作成される）
+};
+
+const GENRES = [
+  { id: "washoku",   label: "和食",         color: "#C1440E" },
+  { id: "yoshoku",   label: "洋食",         color: "#2A6F97" },
+  { id: "chuka",     label: "中華",         color: "#D62828" },
+  { id: "italian",   label: "イタリアン",   color: "#588157" },
+  { id: "ramen",     label: "ラーメン",     color: "#F4A300" },
+  { id: "yakiniku",  label: "焼肉・焼鳥",   color: "#6A040F" },
+  { id: "izakaya",   label: "居酒屋",       color: "#9D4EDD" },
+  { id: "cafe",      label: "カフェ・スイーツ", color: "#E85D75" },
+  { id: "sushi",     label: "寿司",         color: "#023E8A" },
+  { id: "other",     label: "その他",       color: "#6C757D" }
+];
+const genreMap = Object.fromEntries(GENRES.map(g => [g.id, g]));
+
+if (CONFIG.owner === "YOUR_GITHUB_USERNAME") {
+  document.body.innerHTML = `<div class="setup-warning"><div class="box">
+    <h1>⚠️ 設定が未入力です</h1>
+    <p>HTMLファイル内の <code>CONFIG</code>（owner / repo）を、あなたのGitHubユーザー名とリポジトリ名に書き換えてから開いてください。</p>
+    <p>また、リポジトリ内に <code>data/spots.json</code> というファイルを作成し、中身を <code>[]</code>（空配列）にしておいてください。</p>
+  </div></div>`;
+  throw new Error("CONFIG not set");
+}
+
+const RAW_URL = `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${CONFIG.dataPath}`;
+const API_URL = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.dataPath}`;
+const TOKEN_KEY = "gourmet_map_gh_token";
+
+function getToken(){ return localStorage.getItem(TOKEN_KEY); }
+function requireToken(){
+  const t = getToken();
+  if (t) return Promise.resolve(t);
+  return new Promise((resolve) => {
+    document.getElementById('tokenOverlay').classList.add('open');
+    window._tokenResolve = resolve;
+  });
+}
+function saveToken(){
+  const v = document.getElementById('f-token').value.trim();
+  if (!v) return;
+  localStorage.setItem(TOKEN_KEY, v);
+  document.getElementById('tokenOverlay').classList.remove('open');
+  document.getElementById('f-token').value = '';
+  if (window._tokenResolve) { window._tokenResolve(v); window._tokenResolve = null; }
+}
+
+function showStatus(msg, isError){
+  const el = document.getElementById('syncstatus');
+  el.textContent = msg;
+  el.style.background = isError ? '#b33a3a' : '#1c1f1a';
+  el.style.display = 'block';
+  clearTimeout(window._statusTimer);
+  window._statusTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// --- 地図初期化（大阪駅を中心に） ---
+const map = L.map('map', { zoomControl: false }).setView([34.7025, 135.4959], 14);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+document.getElementById('legend-body').innerHTML = GENRES.map(g =>
+  `<div class="legend-row"><span class="swatch" style="background:${g.color}"></span>${g.label}</div>`
+).join('');
+document.getElementById('genreGrid').innerHTML = GENRES.map(g =>
+  `<label class="genre-opt">
+     <input type="radio" name="genre" value="${g.id}" ${g.id==='other'?'checked':''}>
+     <span class="sw" style="background:${g.color}"></span>${g.label}
+   </label>`
+).join('');
+
+function pinIcon(color){
+  const svg = `<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 15 25 15 25s15-14.5 15-25C30 6.7 23.3 0 15 0z" fill="${color}" stroke="#fff" stroke-width="2"/>
+    <circle cx="15" cy="15" r="6" fill="#fff"/>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [30, 40], iconAnchor: [15, 40], popupAnchor: [0, -36] });
+}
+
+let editingId = null;
+let pendingLatLng = null;
+let localData = [];       // 現在表示中のデータ
+const markers = {};
+
+const overlay = document.getElementById('modalOverlay');
+function openModal(mode, latlng, data, id){
+  editingId = id || null;
+  pendingLatLng = latlng;
+  document.getElementById('modalTitle').textContent = mode==='edit' ? 'お店を編集' : 'お店を登録';
+  document.getElementById('modalSub').textContent = mode==='edit' ? '内容を修正して保存してください' : 'この場所にお店を追加します';
+  document.getElementById('submitBtn').textContent = mode==='edit' ? '更新する' : '登録する';
+  document.getElementById('f-name').value = data?.name || '';
+  document.getElementById('f-closed').value = data?.closedDay || '';
+  document.getElementById('f-link').value = data?.link || '';
+  document.getElementById('f-poster').value = '';
+  const genreVal = data?.genre || 'other';
+  document.querySelectorAll('input[name=genre]').forEach(r => r.checked = (r.value === genreVal));
+  overlay.classList.add('open');
+}
+function closeModal(){
+  overlay.classList.remove('open');
+  editingId = null; pendingLatLng = null;
+}
+overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+document.getElementById('storeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('f-name').value.trim();
+  const genre = document.querySelector('input[name=genre]:checked').value;
+  const closedDay = document.getElementById('f-closed').value.trim();
+  const link = document.getElementById('f-link').value.trim();
+  const poster = document.getElementById('f-poster').value.trim();
+  if (!name || !poster) return;
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = '保存中...';
+
+  try {
+    await requireToken();
+    await mutateData(current => {
+      if (editingId) {
+        return current.map(s => s.id === editingId ? {
+          ...s, name, genre, closedDay, link, lastEditedBy: poster, updatedAt: new Date().toISOString()
+        } : s);
+      } else {
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+        return [...current, {
+          id, name, genre, closedDay, link,
+          lat: pendingLatLng.lat, lng: pendingLatLng.lng,
+          postedBy: poster, lastEditedBy: poster,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        }];
+      }
+    }, editingId ? `編集: ${name} (by ${poster})` : `新規登録: ${name} (by ${poster})`);
+    closeModal();
+    showStatus('保存しました');
+  } catch (err) {
+    alert('保存に失敗しました: ' + err.message);
+  } finally {
+    document.getElementById('submitBtn').disabled = false;
+  }
+});
+
+async function deleteStore(id, name){
+  const poster = prompt(`「${name}」を削除します。あなたの名前を入力してください。`);
+  if (!poster) return;
+  if (!confirm(`本当に削除しますか？（削除者: ${poster}）`)) return;
+  try {
+    await requireToken();
+    await mutateData(current => current.filter(s => s.id !== id), `削除: ${name} (by ${poster})`);
+    showStatus('削除しました');
+  } catch (err) {
+    alert('削除に失敗しました: ' + err.message);
+  }
+}
+window.deleteStore = deleteStore;
+window.editStore = (id, data) => openModal('edit', {lat:data.lat, lng:data.lng}, data, id);
+
+// --- GitHub API 経由でのデータ更新（競合時は1回だけ自動リトライ） ---
+async function mutateData(updateFn, message, retried){
+  const token = getToken();
+  const headRes = await fetch(`${API_URL}?ref=${CONFIG.branch}&t=${Date.now()}`, {
+    headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
+  });
+  if (headRes.status === 401) { localStorage.removeItem(TOKEN_KEY); throw new Error('トークンが無効です。再度発行してください。'); }
+  if (!headRes.ok) throw new Error('現在のデータ取得に失敗しました (' + headRes.status + ')');
+  const headJson = await headRes.json();
+  const currentArr = JSON.parse(decodeURIComponent(escape(atob(headJson.content.replace(/\n/g,'')))));
+
+  const newArr = updateFn(currentArr);
+  const newContent = btoa(unescape(encodeURIComponent(JSON.stringify(newArr, null, 2))));
+
+  const putRes = await fetch(API_URL, {
+    method: 'PUT',
+    headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, content: newContent, sha: headJson.sha, branch: CONFIG.branch })
+  });
+  if (putRes.status === 409 && !retried) {
+    return mutateData(updateFn, message, true); // 競合時は最新を取り直して1回だけ再試行
+  }
+  if (!putRes.ok) {
+    const errJson = await putRes.json().catch(()=>({}));
+    throw new Error(errJson.message || ('更新に失敗しました (' + putRes.status + ')'));
+  }
+  await loadAndRender();
+}
+
+// --- 表示用データ読み込み（rawコンテンツ、認証不要） ---
+async function loadAndRender(){
+  try {
+    const res = await fetch(`${RAW_URL}?t=${Date.now()}`);
+    if (!res.ok) {
+      if (res.status === 404) { localData = []; renderAll(); return; }
+      throw new Error('データ取得に失敗 (' + res.status + ')');
+    }
+    localData = await res.json();
+    renderAll();
+  } catch (err) {
+    console.error(err);
+    showStatus('データの読み込みに失敗しました', true);
+  }
+}
+function manualRefresh(){ loadAndRender(); showStatus('更新しました'); }
+
+function renderAll(){
+  const seen = new Set();
+  localData.forEach(d => {
+    seen.add(d.id);
+    const g = genreMap[d.genre] || genreMap.other;
+    if (markers[d.id]) {
+      markers[d.id].setLatLng([d.lat, d.lng]).setIcon(pinIcon(g.color));
+      markers[d.id].setPopupContent(popupHtml(d));
+    } else {
+      const m = L.marker([d.lat, d.lng], { icon: pinIcon(g.color) }).addTo(map);
+      m.bindPopup(popupHtml(d));
+      markers[d.id] = m;
+    }
+  });
+  Object.keys(markers).forEach(id => {
+    if (!seen.has(id)) { map.removeLayer(markers[id]); delete markers[id]; }
+  });
+}
+
+function popupHtml(d){
+  const g = genreMap[d.genre] || genreMap.other;
+  const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${d.lat},${d.lng}`;
+  const linkHtml = d.link ? `<a href="${d.link}" target="_blank" rel="noopener">🔗 サイトを見る</a>` : '';
+  return `
+    <div class="popup-name">${escapeHtml(d.name)}</div>
+    <span class="popup-genre" style="background:${g.color}">${g.label}</span>
+    <div class="popup-row"><b>定休日:</b> ${escapeHtml(d.closedDay || '情報なし')}</div>
+    <div class="popup-actions">
+      <a class="pmap" href="${gmapsUrl}" target="_blank" rel="noopener">📍 Googleマップ</a>
+      ${linkHtml}
+      <button onclick='editStore("${d.id}", ${JSON.stringify(d).replace(/'/g,"&#39;")})'>✏️ 編集</button>
+      <button class="pdel" onclick='deleteStore("${d.id}", "${escapeHtml(d.name)}")'>🗑️ 削除</button>
+    </div>
+    <div class="popup-meta">投稿: ${escapeHtml(d.postedBy||'-')}${d.lastEditedBy && d.lastEditedBy!==d.postedBy ? ' / 最終編集: '+escapeHtml(d.lastEditedBy) : ''}</div>
+  `;
+}
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// --- 長押しで新規登録 ---
+let pressTimer = null;
+const LONG_PRESS_MS = 550;
+function startPress(latlng){
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    openModal('create', latlng, null, null);
+    if (navigator.vibrate) navigator.vibrate(30);
+  }, LONG_PRESS_MS);
+}
+function cancelPress(){ if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+map.on('mousedown', e => startPress(e.latlng));
+map.on('mouseup', cancelPress);
+map.on('mousemove', cancelPress);
+map.on('touchstart', e => { if (e.latlng) startPress(e.latlng); });
+map.on('touchend', cancelPress);
+map.on('touchmove', cancelPress);
+map.on('dragstart', cancelPress);
+
+// --- 初期読み込み＋定期自動更新（30秒ごと） ---
+loadAndRender();
+setInterval(loadAndRender, 30000);
+</script>
+</body>
+</html>
