@@ -43,6 +43,7 @@
     padding:8px 12px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer;
     backdrop-filter:blur(4px);
   }
+  .hbtn.active{ background:var(--mustard); border-color:var(--mustard); color:#1c1f1a; }
 
   #legend{
     position:absolute;top:64px;right:16px;z-index:500;
@@ -51,7 +52,11 @@
   }
   #legend.open{display:block;}
   #legend h3{margin:0 0 8px;font-size:11px;letter-spacing:.08em;color:#888;font-weight:700;}
-  .legend-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;}
+  .legend-row{display:flex;align-items:center;gap:8px;padding:7px 6px;font-size:13px;border-radius:8px;cursor:pointer;}
+  .legend-row:active{background:var(--line);}
+  .legend-row.active{background:var(--ink);color:#fff;font-weight:700;}
+  .legend-all{display:flex;align-items:center;gap:8px;padding:7px 6px;font-size:12.5px;border-radius:8px;cursor:pointer;color:#888;border-bottom:1px solid var(--line);margin-bottom:4px;padding-bottom:9px;}
+  .legend-all.active{color:var(--ink);font-weight:700;}
   .swatch{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.15);}
 
   #hint{
@@ -129,6 +134,7 @@
 <header>
   <div class="title"><span class="dot"></span>グルメマップ</div>
   <div class="header-btns">
+    <button class="hbtn" id="addModeBtn" onclick="toggleAddMode()">＋ 地点を登録</button>
     <button class="hbtn" onclick="manualRefresh()">↻ 更新</button>
     <button class="hbtn" onclick="document.getElementById('legend').classList.toggle('open')">ジャンル</button>
   </div>
@@ -136,7 +142,7 @@
 
 <div id="syncstatus"></div>
 <div id="legend"><h3>ジャンル</h3><div id="legend-body"></div></div>
-<div id="hint">地図を長押しすると、お店を新規登録できます</div>
+<div id="hint">「＋ 地点を登録」を押してから地図をタップすると登録できます</div>
 
 <!-- 登録・編集モーダル -->
 <div class="modal-overlay" id="modalOverlay">
@@ -262,7 +268,7 @@ function showStatus(msg, isError){
 }
 
 // --- 地図初期化（大阪駅を中心に） ---
-const map = L.map('map', { zoomControl: false }).setView([34.7025, 135.4959], 14);
+const map = L.map('map', { zoomControl: false }).setView([34.7818, 135.4703], 16);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.DomEvent.on(map.getContainer(), 'contextmenu', e => e.preventDefault());
 L.DomEvent.on(document.body, 'selectstart', e => e.preventDefault());
@@ -270,8 +276,12 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
 }).addTo(map);
 
-document.getElementById('legend-body').innerHTML = GENRES.map(g =>
-  `<div class="legend-row"><span class="swatch" style="background:${g.color}"></span>${g.label}</div>`
+document.getElementById('legend-body').innerHTML =
+  `<div class="legend-all active" id="legendAll" onclick="setFilter(null)">すべて表示</div>` +
+  GENRES.map(g =>
+  `<div class="legend-row" data-genre="${g.id}" onclick="setFilter('${g.id}')">
+     <span class="swatch" style="background:${g.color}"></span>${g.label}
+   </div>`
 ).join('');
 document.getElementById('genreGrid').innerHTML = GENRES.map(g =>
   `<label class="genre-opt">
@@ -291,7 +301,29 @@ function pinIcon(color){
 let editingId = null;
 let pendingLatLng = null;
 let localData = [];       // 現在表示中のデータ
+let activeFilter = null;  // nullなら全ジャンル表示
 const markers = {};
+
+function setFilter(genreId){
+  activeFilter = (activeFilter === genreId) ? null : genreId;
+  document.getElementById('legendAll').classList.toggle('active', activeFilter === null);
+  document.querySelectorAll('.legend-row').forEach(row => {
+    row.classList.toggle('active', row.dataset.genre === activeFilter);
+  });
+  applyFilter();
+}
+window.setFilter = setFilter;
+
+function applyFilter(){
+  localData.forEach(d => {
+    const m = markers[d.id];
+    if (!m) return;
+    const shouldShow = (activeFilter === null || d.genre === activeFilter);
+    const isShown = map.hasLayer(m);
+    if (shouldShow && !isShown) map.addLayer(m);
+    if (!shouldShow && isShown) map.removeLayer(m);
+  });
+}
 
 const overlay = document.getElementById('modalOverlay');
 function openModal(mode, latlng, data, id){
@@ -433,6 +465,7 @@ function renderAll(){
   Object.keys(markers).forEach(id => {
     if (!seen.has(id)) { map.removeLayer(markers[id]); delete markers[id]; }
   });
+  applyFilter();
 }
 
 function popupHtml(d){
@@ -456,24 +489,37 @@ function escapeHtml(s){
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// --- 長押しで新規登録 ---
-let pressTimer = null;
-const LONG_PRESS_MS = 550;
-function startPress(latlng){
-  pressTimer = setTimeout(() => {
-    pressTimer = null;
-    openModal('create', latlng, null, null);
-    if (navigator.vibrate) navigator.vibrate(30);
-  }, LONG_PRESS_MS);
+// --- 「地点を登録」ボタン→地図タップで登録 ---
+let addMode = false;
+function toggleAddMode(){
+  addMode = !addMode;
+  const btn = document.getElementById('addModeBtn');
+  const hint = document.getElementById('hint');
+  const container = map.getContainer();
+  if (addMode) {
+    btn.textContent = '✕ キャンセル';
+    btn.classList.add('active');
+    hint.textContent = '地図をタップして登録地点を選んでください';
+    container.style.cursor = 'crosshair';
+  } else {
+    btn.textContent = '＋ 地点を登録';
+    btn.classList.remove('active');
+    hint.textContent = '「＋ 地点を登録」を押してから地図をタップすると登録できます';
+    container.style.cursor = '';
+  }
 }
-function cancelPress(){ if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
-map.on('mousedown', e => startPress(e.latlng));
-map.on('mouseup', cancelPress);
-map.on('mousemove', cancelPress);
-map.on('touchstart', e => { if (e.latlng) startPress(e.latlng); });
-map.on('touchend', cancelPress);
-map.on('touchmove', cancelPress);
-map.on('dragstart', cancelPress);
+window.toggleAddMode = toggleAddMode;
+map.on('click', e => {
+  if (!addMode) return;
+  openModal('create', e.latlng, null, null);
+  if (navigator.vibrate) navigator.vibrate(30);
+  addMode = false;
+  const btn = document.getElementById('addModeBtn');
+  btn.textContent = '＋ 地点を登録';
+  btn.classList.remove('active');
+  document.getElementById('hint').textContent = '「＋ 地点を登録」を押してから地図をタップすると登録できます';
+  map.getContainer().style.cursor = '';
+});
 
 // --- 初期読み込み＋定期自動更新（30秒ごと） ---
 loadAndRender();
