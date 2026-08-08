@@ -14,8 +14,13 @@
     --radius:14px; --shadow:0 8px 24px rgba(28,31,26,0.16);
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;margin:0;font-family:'Noto Sans JP',sans-serif;color:var(--ink);background:var(--paper);}
-  #map{position:absolute;inset:0;z-index:1;}
+  html,body{height:100%;margin:0;font-family:'Noto Sans JP',sans-serif;color:var(--ink);background:var(--paper);
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+  #map{position:absolute;inset:0;z-index:1;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+  .leaflet-tile-pane{ filter: grayscale(1) contrast(1.05); }
+  #map *{ -webkit-touch-callout:none; }
+  .modal input, .modal label{ -webkit-user-select:auto; user-select:auto; }
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow);}
   .leaflet-popup-content{margin:14px 16px;font-family:'Noto Sans JP',sans-serif;}
 
@@ -195,10 +200,10 @@
    ここにあなたのGitHubリポジトリ情報を入力してください
    ============================================================ */
 const CONFIG = {
-  owner: "yoshihiro564",   // 例: "yoshihiro-suwa"
-  repo: "gourmet-map",          // 例: "gourmet-map"
-  branch: "main",                  // リポジトリのデフォルトブランチ名
-  dataPath: "data/spots.json"      // データ保存先のファイルパス（リポジトリ内に作成される）
+  owner: "yoshihiro564",
+  repo: "gourmet-map",
+  branch: "main",
+  dataPath: "data/spots.json"
 };
 
 const GENRES = [
@@ -210,6 +215,7 @@ const GENRES = [
   { id: "yakiniku",  label: "焼肉・焼鳥",   color: "#6A040F" },
   { id: "izakaya",   label: "居酒屋",       color: "#9D4EDD" },
   { id: "cafe",      label: "カフェ・スイーツ", color: "#E85D75" },
+  { id: "udonsoba", label: "うどん・そば", color: "#2A9D8F" },
   { id: "sushi",     label: "寿司",         color: "#023E8A" },
   { id: "other",     label: "その他",       color: "#6C757D" }
 ];
@@ -258,6 +264,8 @@ function showStatus(msg, isError){
 // --- 地図初期化（大阪駅を中心に） ---
 const map = L.map('map', { zoomControl: false }).setView([34.7025, 135.4959], 14);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.DomEvent.on(map.getContainer(), 'contextmenu', e => e.preventDefault());
+L.DomEvent.on(document.body, 'selectstart', e => e.preventDefault());
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
 }).addTo(map);
@@ -385,7 +393,10 @@ async function mutateData(updateFn, message, retried){
     const errJson = await putRes.json().catch(()=>({}));
     throw new Error(errJson.message || ('更新に失敗しました (' + putRes.status + ')'));
   }
-  await loadAndRender();
+  // GitHub側(raw CDN)の反映には数分のタイムラグがあるため、
+  // 再取得を待たずに今回の更新結果をそのまま描画する
+  localData = newArr;
+  renderAll();
 }
 
 // --- 表示用データ読み込み（rawコンテンツ、認証不要） ---
