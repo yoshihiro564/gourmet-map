@@ -135,6 +135,7 @@
   <div class="title"><span class="dot"></span>グルメマップ</div>
   <div class="header-btns">
     <button class="hbtn" id="addModeBtn" onclick="toggleAddMode()">＋ 地点を登録</button>
+    <button class="hbtn" onclick="openAddressSearch()">📍 住所で登録</button>
     <button class="hbtn" onclick="manualRefresh()">↻ 更新</button>
     <button class="hbtn" onclick="document.getElementById('legend').classList.toggle('open')">ジャンル</button>
   </div>
@@ -166,6 +167,10 @@
         <label>リンク（食べログ・公式サイト等）</label>
         <input type="url" id="f-link" placeholder="https://...">
       </div>
+      <div class="field">
+        <label>メモ・コメント（自由記載）</label>
+        <textarea id="f-note" rows="3" placeholder="おすすめメニュー、混雑状況、ひとことコメントなど" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14.5px;font-family:inherit;background:#fff;color:var(--ink);resize:vertical;"></textarea>
+      </div>
       <div class="field field-required">
         <label>投稿者名</label>
         <input type="text" id="f-poster" required placeholder="あなたの名前">
@@ -175,6 +180,22 @@
         <button type="submit" class="btn btn-primary" id="submitBtn">登録する</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- 住所検索モーダル -->
+<div class="modal-overlay" id="addressOverlay">
+  <div class="modal">
+    <h2>住所からお店を登録</h2>
+    <p class="sub">住所や施設名を入力して検索してください</p>
+    <div class="field">
+      <label>住所・施設名</label>
+      <input type="text" id="f-address" placeholder="例）大阪府豊中市曽根東町3丁目">
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('addressOverlay').classList.remove('open')">キャンセル</button>
+      <button type="button" class="btn btn-primary" id="addressSearchBtn" onclick="searchAddress()">検索する</button>
+    </div>
   </div>
 </div>
 
@@ -222,6 +243,10 @@ const GENRES = [
   { id: "izakaya",   label: "居酒屋",       color: "#9D4EDD" },
   { id: "cafe",      label: "カフェ・スイーツ", color: "#E85D75" },
   { id: "udonsoba", label: "うどん・そば", color: "#2A9D8F" },
+  { id: "tonkatsu",  label: "とんかつ・揚げ物", color: "#B5651D" },
+  { id: "teishoku",  label: "定食・食堂",   color: "#A67C52" },
+  { id: "curry",     label: "丼もの・カレー", color: "#D9A404" },
+  { id: "bakery",    label: "パン・ベーカリー", color: "#C97064" },
   { id: "sushi",     label: "寿司",         color: "#023E8A" },
   { id: "other",     label: "その他",       color: "#6C757D" }
 ];
@@ -325,6 +350,38 @@ function applyFilter(){
   });
 }
 
+function openAddressSearch(){
+  document.getElementById('f-address').value = '';
+  document.getElementById('addressOverlay').classList.add('open');
+}
+window.openAddressSearch = openAddressSearch;
+
+async function searchAddress(){
+  const q = document.getElementById('f-address').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('addressSearchBtn');
+  btn.disabled = true; btn.textContent = '検索中...';
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=jp&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'ja' } });
+    if (!res.ok) throw new Error('検索に失敗しました');
+    const results = await res.json();
+    if (!results.length) {
+      alert('該当する住所が見つかりませんでした。もう少し詳しい住所や、施設名で試してください。');
+      return;
+    }
+    const { lat, lon } = results[0];
+    document.getElementById('addressOverlay').classList.remove('open');
+    map.setView([parseFloat(lat), parseFloat(lon)], 17);
+    openModal('create', { lat: parseFloat(lat), lng: parseFloat(lon) }, null, null);
+  } catch (err) {
+    alert('検索に失敗しました: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '検索する';
+  }
+}
+window.searchAddress = searchAddress;
+
 const overlay = document.getElementById('modalOverlay');
 function openModal(mode, latlng, data, id){
   editingId = id || null;
@@ -335,6 +392,7 @@ function openModal(mode, latlng, data, id){
   document.getElementById('f-name').value = data?.name || '';
   document.getElementById('f-closed').value = data?.closedDay || '';
   document.getElementById('f-link').value = data?.link || '';
+  document.getElementById('f-note').value = data?.note || '';
   document.getElementById('f-poster').value = '';
   const genreVal = data?.genre || 'other';
   document.querySelectorAll('input[name=genre]').forEach(r => r.checked = (r.value === genreVal));
@@ -352,6 +410,7 @@ document.getElementById('storeForm').addEventListener('submit', async (e) => {
   const genre = document.querySelector('input[name=genre]:checked').value;
   const closedDay = document.getElementById('f-closed').value.trim();
   const link = document.getElementById('f-link').value.trim();
+  const note = document.getElementById('f-note').value.trim();
   const poster = document.getElementById('f-poster').value.trim();
   if (!name || !poster) return;
 
@@ -363,12 +422,12 @@ document.getElementById('storeForm').addEventListener('submit', async (e) => {
     await mutateData(current => {
       if (editingId) {
         return current.map(s => s.id === editingId ? {
-          ...s, name, genre, closedDay, link, lastEditedBy: poster, updatedAt: new Date().toISOString()
+          ...s, name, genre, closedDay, link, note, lastEditedBy: poster, updatedAt: new Date().toISOString()
         } : s);
       } else {
         const id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
         return [...current, {
-          id, name, genre, closedDay, link,
+          id, name, genre, closedDay, link, note,
           lat: pendingLatLng.lat, lng: pendingLatLng.lng,
           postedBy: poster, lastEditedBy: poster,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
@@ -476,6 +535,7 @@ function popupHtml(d){
     <div class="popup-name">${escapeHtml(d.name)}</div>
     <span class="popup-genre" style="background:${g.color}">${g.label}</span>
     <div class="popup-row"><b>定休日:</b> ${escapeHtml(d.closedDay || '情報なし')}</div>
+    ${d.note ? `<div class="popup-row" style="white-space:pre-wrap;">📝 ${escapeHtml(d.note)}</div>` : ''}
     <div class="popup-actions">
       <a class="pmap" href="${gmapsUrl}" target="_blank" rel="noopener">📍 Googleマップ</a>
       ${linkHtml}
