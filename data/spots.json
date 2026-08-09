@@ -171,5 +171,19 @@
     "lastEditedBy": "すわ",
     "createdAt": "2026-08-09T10:02:12.409Z",
     "updatedAt": "2026-08-09T10:02:12.409Z"
+  },
+  {
+    "id": "msln00lwo2ai0",
+    "name": "四國うどん",
+    "genre": "udonsoba",
+    "closedDay": "木曜日",
+    "link": "",
+    "note": "",
+    "lat": 34.73116903762168,
+    "lng": 135.6314724683762,
+    "postedBy": "すわ",
+    "lastEditedBy": "すわ",
+    "createdAt": "2026-08-09T10:05:37.172Z",
+    "updatedAt": "2026-08-09T10:05:37.172Z"
   }
 ]
