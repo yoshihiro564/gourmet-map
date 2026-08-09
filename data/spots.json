@@ -129,5 +129,19 @@
     "lastEditedBy": "スワヨシヒロ",
     "createdAt": "2026-08-08T13:07:46.820Z",
     "updatedAt": "2026-08-08T13:07:46.820Z"
+  },
+  {
+    "id": "mslj78jl6gglb",
+    "name": "まるかつ",
+    "genre": "tonkatsu",
+    "closedDay": "",
+    "link": "",
+    "note": "",
+    "lat": 34.589061773517756,
+    "lng": 135.84686994552615,
+    "postedBy": "すわ",
+    "lastEditedBy": "すわ",
+    "createdAt": "2026-08-09T08:19:15.585Z",
+    "updatedAt": "2026-08-09T08:19:15.585Z"
   }
 ]
