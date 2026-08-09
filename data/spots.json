@@ -157,5 +157,19 @@
     "lastEditedBy": "すわ",
     "createdAt": "2026-08-09T10:01:02.989Z",
     "updatedAt": "2026-08-09T10:01:02.989Z"
+  },
+  {
+    "id": "mslmvmm130tgd",
+    "name": "ラーメン大和",
+    "genre": "ramen",
+    "closedDay": "",
+    "link": "",
+    "note": "",
+    "lat": 34.74531522423427,
+    "lng": 135.63251316547397,
+    "postedBy": "すわ",
+    "lastEditedBy": "すわ",
+    "createdAt": "2026-08-09T10:02:12.409Z",
+    "updatedAt": "2026-08-09T10:02:12.409Z"
   }
 ]
