@@ -202,5 +202,19 @@
     "lastEditedBy": "すわ",
     "createdAt": "2026-08-09T10:06:21.737Z",
     "updatedAt": "2026-08-09T10:06:21.737Z"
+  },
+  {
+    "id": "msmepc9kquzvv",
+    "name": "洋食 ジャンボ",
+    "genre": "yoshoku",
+    "closedDay": "火曜日・日曜日",
+    "link": "https://jumbo-kobe.com/",
+    "note": "",
+    "lat": 34.654879443726756,
+    "lng": 135.1456063985825,
+    "postedBy": "すわ",
+    "lastEditedBy": "すわ",
+    "createdAt": "2026-08-09T23:01:08.312Z",
+    "updatedAt": "2026-08-09T23:01:08.312Z"
   }
 ]
