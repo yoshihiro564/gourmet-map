@@ -244,5 +244,19 @@
     "lastEditedBy": "すわ",
     "createdAt": "2026-08-10T03:18:18.504Z",
     "updatedAt": "2026-08-10T03:18:18.504Z"
+  },
+  {
+    "id": "msmo221ilzfvc",
+    "name": "まるか食堂",
+    "genre": "other",
+    "closedDay": "日曜日",
+    "link": "",
+    "note": "",
+    "lat": 34.92603071454244,
+    "lng": 135.70061981678012,
+    "postedBy": "すわ",
+    "lastEditedBy": "すわ",
+    "createdAt": "2026-08-10T03:22:58.134Z",
+    "updatedAt": "2026-08-10T03:22:58.134Z"
   }
 ]
